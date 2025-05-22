@@ -67,8 +67,8 @@ class SocialLoginKey(Document):
 			"Keycloak",
 		]
 		user_id_property: DF.Data | None
-
 	# end: auto-generated types
+
 	def autoname(self):
 		self.name = frappe.scrub(self.provider_name)
 

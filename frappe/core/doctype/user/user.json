@@ -26,6 +26,7 @@
   "roles_permissions_tab",
   "sb1",
   "role_profile_name",
+  "role_profiles",
   "roles_html",
   "roles",
   "sb_allow_modules",
@@ -47,6 +48,7 @@
   "desk_settings_section",
   "mute_sounds",
   "desk_theme",
+  "code_editor_type",
   "banner_image",
   "navigation_settings_section",
   "search_bar",
@@ -227,9 +229,9 @@
    "read_only": 1
   },
   {
-   "allow_in_quick_entry": 1,
    "fieldname": "role_profile_name",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Role Profile",
    "options": "Role Profile",
    "permlevel": 1
@@ -409,7 +411,7 @@
   },
   {
    "fieldname": "email_signature",
-   "fieldtype": "Small Text",
+   "fieldtype": "Text Editor",
    "label": "Email Signature",
    "no_copy": 1
   },
@@ -721,6 +723,14 @@
    "label": "Onboarding Status"
   },
   {
+   "allow_in_quick_entry": 1,
+   "fieldname": "role_profiles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Role Profiles",
+   "options": "User Role Profile",
+   "permlevel": 1
+  },
+  {
    "description": "If left empty, the default workspace will be the last visited workspace",
    "fieldname": "default_workspace",
    "fieldtype": "Link",
@@ -734,6 +744,13 @@
    "label": "Workspace"
   },
   {
+   "default": "vscode",
+   "fieldname": "code_editor_type",
+   "fieldtype": "Select",
+   "label": "Code Editor Type",
+   "options": "vscode\nvim\nemacs"
+  },
+  {
    "collapsible": 1,
    "fieldname": "app_section",
    "fieldtype": "Section Break",
@@ -743,8 +760,7 @@
    "description": "Redirect to the selected app after login",
    "fieldname": "default_app",
    "fieldtype": "Select",
-   "label": "Default App",
-   "options": ""
+   "label": "Default App"
   },
   {
    "collapsible": 1,
@@ -839,11 +855,6 @@
   },
   {
    "group": "Logs",
-   "link_doctype": "Energy Point Log",
-   "link_fieldname": "user"
-  },
-  {
-   "group": "Logs",
    "link_doctype": "Route History",
    "link_fieldname": "user"
   },
@@ -909,7 +920,7 @@
  "row_format": "Dynamic",
  "search_fields": "full_name",
  "show_name_in_global_search": 1,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "title_field": "full_name",

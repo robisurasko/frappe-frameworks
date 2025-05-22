@@ -55,7 +55,7 @@ def setup_complete(args):
 	is_background_task = frappe.conf.get("trigger_site_setup_in_background")
 
 	if is_background_task:
-		process_setup_stages.enqueue(stages=stages, user_input=args, is_background_task=True)
+		process_setup_stages.enqueue(stages=stages, user_input=args, is_background_task=True, at_front=True)
 		return {"status": "registered"}
 	else:
 		return process_setup_stages(stages, args)
@@ -340,13 +340,6 @@ def load_languages():
 		"languages": sorted(frappe.db.sql_list("select language_name from tabLanguage order by name")),
 		"codes_to_names": codes_to_names,
 	}
-
-
-@frappe.whitelist()
-def load_country():
-	from frappe.sessions import get_geo_ip_country
-
-	return get_geo_ip_country(frappe.local.request_ip) if frappe.local.request_ip else None
 
 
 @frappe.whitelist()

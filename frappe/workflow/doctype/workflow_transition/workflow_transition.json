@@ -16,7 +16,7 @@
   "condition",
   "column_break_7",
   "example",
-  "workflow_build_id"
+  "workflow_builder_id"
  ],
  "fields": [
   {
@@ -110,7 +110,7 @@
  "name": "Workflow Transition",
  "owner": "Administrator",
  "permissions": [],
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": []
 }

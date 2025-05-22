@@ -47,14 +47,14 @@ class Contact(Document):
 		sync_with_google_contacts: DF.Check
 		unsubscribed: DF.Check
 		user: DF.Link | None
-
 	# end: auto-generated types
+
 	def autoname(self):
 		self.name = self._get_full_name()
 
 		# concat party name if reqd
 		for link in self.links:
-			self.name = self.name + "-" + link.link_name.strip()
+			self.name = self.name + "-" + cstr(link.link_name).strip()
 			break
 
 		if frappe.db.exists("Contact", self.name):
@@ -265,7 +265,7 @@ def download_vcards(contacts: str):
 
 
 def get_default_contact(doctype, name):
-	"""Returns default contact for the given doctype, name"""
+	"""Return default contact for the given doctype, name."""
 	out = frappe.db.sql(
 		"""select parent,
 			IFNULL((select is_primary_contact from tabContact c where c.name = dl.parent), 0)

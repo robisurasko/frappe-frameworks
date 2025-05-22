@@ -19,6 +19,7 @@
   "reqd",
   "is_virtual",
   "search_index",
+  "not_nullable",
   "column_break_18",
   "options",
   "sort_options",
@@ -47,6 +48,7 @@
   "in_list_view",
   "in_standard_filter",
   "in_preview",
+  "sticky",
   "column_break_35",
   "in_filter",
   "in_global_search",
@@ -107,8 +109,7 @@
    "oldfieldtype": "Select",
    "options": "Autocomplete\nAttach\nAttach Image\nBarcode\nButton\nCheck\nCode\nColor\nColumn Break\nCurrency\nData\nDate\nDatetime\nDuration\nDynamic Link\nFloat\nFold\nGeolocation\nHeading\nHTML\nHTML Editor\nIcon\nImage\nInt\nJSON\nLink\nLong Text\nMarkdown Editor\nPassword\nPercent\nPhone\nRead Only\nRating\nSection Break\nSelect\nSignature\nSmall Text\nTab Break\nTable\nTable MultiSelect\nText\nText Editor\nTime",
    "reqd": 1,
-   "search_index": 1,
-   "sort_options": 1
+   "search_index": 1
   },
   {
    "bold": 1,
@@ -188,6 +189,7 @@
   },
   {
    "default": "0",
+   "depends_on": "eval:!in_list(['Tab Break', 'Table'], doc.fieldtype)",
    "fieldname": "allow_in_quick_entry",
    "fieldtype": "Check",
    "label": "Allow in Quick Entry"
@@ -229,6 +231,7 @@
    "description": "For Links, enter the DocType as range.\nFor Select, enter list of Options, each on a new line.",
    "fieldname": "options",
    "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
    "in_list_view": 1,
    "label": "Options",
    "oldfieldname": "options",
@@ -237,6 +240,7 @@
   {
    "fieldname": "default",
    "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
    "label": "Default",
    "max_height": "3rem",
    "oldfieldname": "default",
@@ -573,6 +577,13 @@
   },
   {
    "default": "0",
+   "depends_on": "eval:!in_list([\"Check\", \"Currency\", \"Float\", \"Int\", \"Percent\", \"Rating\", \"Select\", \"Table\", \"Table MultiSelect\"], doc.fieldtype)",
+   "fieldname": "not_nullable",
+   "fieldtype": "Check",
+   "label": "Not Nullable"
+  },
+  {
+   "default": "0",
    "depends_on": "eval: doc.hidden",
    "fieldname": "show_on_timeline",
    "fieldtype": "Check",
@@ -589,20 +600,27 @@
    "fieldname": "make_attachment_public",
    "fieldtype": "Check",
    "label": "Make Attachment Public (by default)"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:!in_list(['Table', 'Table MultiSelect'], doc.fieldtype);",
+   "fieldname": "sticky",
+   "fieldtype": "Check",
+   "label": "Sticky"
   }
  ],
  "idx": 1,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2024-10-01 07:26:16.380090",
+ "modified": "2025-01-30 14:58:19.746600",
  "modified_by": "Administrator",
  "module": "Core",
  "name": "DocField",
  "naming_rule": "Random",
  "owner": "Administrator",
  "permissions": [],
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "ASC",
  "states": []
 }

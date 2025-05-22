@@ -26,15 +26,15 @@ class AccessLog(Document):
 		report_name: DF.Data | None
 		timestamp: DF.Datetime | None
 		user: DF.Link | None
-
 	# end: auto-generated types
+
 	@staticmethod
 	def clear_old_logs(days=30):
 		from frappe.query_builder import Interval
 		from frappe.query_builder.functions import Now
 
 		table = frappe.qb.DocType("Access Log")
-		frappe.db.delete(table, filters=(table.modified < (Now() - Interval(days=days))))
+		frappe.db.delete(table, filters=(table.creation < (Now() - Interval(days=days))))
 
 
 @frappe.whitelist()

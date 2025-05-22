@@ -8,6 +8,7 @@ from frappe.desk.doctype.notification_settings.notification_settings import (
 	is_notifications_enabled,
 )
 from frappe.model.document import Document
+from frappe.utils.caching import http_cache
 
 
 class NotificationLog(Document):
@@ -28,9 +29,9 @@ class NotificationLog(Document):
 		link: DF.Data | None
 		read: DF.Check
 		subject: DF.Text | None
-		type: DF.Literal["", "Mention", "Energy Point", "Assignment", "Share", "Alert"]
-
+		type: DF.Literal["", "Mention", "Assignment", "Share", "Alert"]
 	# end: auto-generated types
+
 	def after_insert(self):
 		frappe.publish_realtime("notification", after_commit=True, user=self.for_user)
 		set_notifications_as_unseen(self.for_user)
@@ -46,7 +47,7 @@ class NotificationLog(Document):
 		from frappe.query_builder.functions import Now
 
 		table = frappe.qb.DocType("Notification Log")
-		frappe.db.delete(table, filters=(table.modified < (Now() - Interval(days=days))))
+		frappe.db.delete(table, filters=(table.creation < (Now() - Interval(days=days))))
 
 
 def get_permission_query_conditions(for_user):
@@ -93,6 +94,7 @@ def enqueue_create_notification(users: list[str] | str, doc: dict):
 		doc=doc,
 		users=users,
 		now=frappe.flags.in_test,
+		enqueue_after_commit=not frappe.flags.in_test,
 	)
 
 
@@ -101,11 +103,7 @@ def make_notification_logs(doc, users):
 		notification = frappe.new_doc("Notification Log")
 		notification.update(doc)
 		notification.for_user = user
-		if (
-			notification.for_user != notification.from_user
-			or doc.type == "Energy Point"
-			or doc.type == "Alert"
-		):
+		if notification.for_user != notification.from_user or doc.type == "Alert":
 			notification.insert(ignore_permissions=True)
 
 
@@ -117,9 +115,6 @@ def _get_user_ids(user_emails):
 
 
 def send_notification_email(doc: NotificationLog):
-	if doc.type == "Energy Point" and doc.email_content is None:
-		return
-
 	from frappe.utils import get_url_to_form, strip_html
 
 	user = frappe.db.get_value("User", doc.for_user, fieldname=["email", "language"], as_dict=True)
@@ -156,16 +151,24 @@ def get_email_header(doc, language: str | None = None):
 		"Mention": _("New Mention on {0}", lang=language).format(docname),
 		"Assignment": _("Assignment Update on {0}", lang=language).format(docname),
 		"Share": _("New Document Shared {0}", lang=language).format(docname),
-		"Energy Point": _("Energy Point Update on {0}", lang=language).format(docname),
 	}
+	if not doc.email_header:
+		doc.email_header = header_map[doc.type or "Default"]
+	return doc.email_header
 
-	return header_map[doc.type or "Default"]
+
+def format_email_header(header_map, language, docname):
+	messages = []
+	for v in list(header_map.values()):
+		messages.append(_(v[0], lang=language).format(docname))
+	return dict(zip(header_map.keys(), messages, strict=True))
 
 
 @frappe.whitelist()
+@http_cache(max_age=60, stale_while_revalidate=60 * 60)
 def get_notification_logs(limit=20):
 	notification_logs = frappe.db.get_list(
-		"Notification Log", fields=["*"], limit=limit, order_by="modified desc"
+		"Notification Log", fields=["*"], limit=limit, order_by="creation desc"
 	)
 
 	users = [log.from_user for log in notification_logs]

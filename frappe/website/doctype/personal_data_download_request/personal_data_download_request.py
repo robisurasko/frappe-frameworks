@@ -21,8 +21,8 @@ class PersonalDataDownloadRequest(Document):
 		amended_from: DF.Link | None
 		user: DF.Link
 		user_name: DF.Data | None
-
 	# end: auto-generated types
+
 	def after_insert(self):
 		personal_data = get_user_data(self.user)
 
@@ -71,7 +71,7 @@ class PersonalDataDownloadRequest(Document):
 
 
 def get_user_data(user):
-	"""returns user data not linked to User doctype"""
+	"""Return user data not linked to `User` doctype."""
 	hooks = frappe.get_hooks("user_data_fields")
 	data = {}
 	for hook in hooks:

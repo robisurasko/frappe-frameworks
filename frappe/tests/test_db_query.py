@@ -14,11 +14,11 @@ from frappe.handler import execute_cmd
 from frappe.model.db_query import DatabaseQuery, get_between_date_filter
 from frappe.permissions import add_user_permission, clear_user_permissions_for_doctype
 from frappe.query_builder import Column
+from frappe.tests import IntegrationTestCase
 from frappe.tests.test_query_builder import db_type_is, run_only_if
-from frappe.tests.utils import FrappeTestCase
 from frappe.utils.testutils import add_custom_field, clear_custom_fields
 
-test_dependencies = ["User", "Blog Post", "Blog Category", "Blogger"]
+EXTRA_TEST_RECORD_DEPENDENCIES = ["User", "Blog Post", "Blog Category", "Blogger"]
 
 
 @contextmanager
@@ -47,7 +47,7 @@ def setup_patched_blog_post():
 	yield
 
 
-class TestDBQuery(FrappeTestCase):
+class TestDBQuery(IntegrationTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
 
@@ -267,6 +267,11 @@ class TestDBQuery(FrappeTestCase):
 			self.assertFalse(
 				result in DatabaseQuery("DocType").execute(filters={"name": ["not in", "DocType,DocField"]})
 			)
+
+	def test_string_as_field(self):
+		self.assertEqual(
+			frappe.get_all("DocType", as_list=True), frappe.get_all("DocType", fields="name", as_list=True)
+		)
 
 	def test_none_filter(self):
 		query = frappe.qb.get_query("DocType", fields="name", filters={"restrict_to_domain": None})
@@ -1076,26 +1081,22 @@ class TestDBQuery(FrappeTestCase):
 
 		class VirtualDocType:
 			@staticmethod
-			def get_list(args):
-				...
+			def get_list(args=None, limit_page_length=0, doctype=None):
+				from frappe.types.filter import FilterTuple
+
+				# Backward compatibility
+				self.assertEqual(
+					args["filters"], [FilterTuple(doctype="Virtual DocType", fieldname="name", value="test")]
+				)
+
+				self.assertEqual(limit_page_length, 1)
+				self.assertEqual(doctype, "Virtual DocType")
 
 		with patch(
 			"frappe.controllers",
 			new={frappe.local.site: {"Virtual DocType": VirtualDocType}},
 		):
-			VirtualDocType.get_list = MagicMock()
-
 			frappe.get_all("Virtual DocType", filters={"name": "test"}, fields=["name"], limit=1)
-
-			call_args = VirtualDocType.get_list.call_args[0][0]
-			VirtualDocType.get_list.assert_called_once()
-			self.assertIsInstance(call_args, dict)
-			self.assertEqual(call_args["doctype"], "Virtual DocType")
-			self.assertEqual(call_args["filters"], [["Virtual DocType", "name", "=", "test"]])
-			self.assertEqual(call_args["fields"], ["name"])
-			self.assertEqual(call_args["limit_page_length"], 1)
-			self.assertEqual(call_args["limit_start"], 0)
-			self.assertEqual(call_args["order_by"], DefaultOrderBy)
 
 	def test_coalesce_with_in_ops(self):
 		self.assertNotIn("ifnull", frappe.get_all("User", {"first_name": ("in", ["a", "b"])}, run=0))
@@ -1209,7 +1210,7 @@ class TestDBQuery(FrappeTestCase):
 		self.assertNotIn("ifnull", query)
 
 
-class TestReportView(FrappeTestCase):
+class TestReportView(IntegrationTestCase):
 	@run_only_if(db_type_is.MARIADB)  # TODO: postgres name casting is messed up
 	def test_get_count(self):
 		frappe.local.request = frappe._dict()
@@ -1275,20 +1276,6 @@ class TestReportView(FrappeTestCase):
 		frappe.local.form_dict = frappe._dict(
 			{
 				"doctype": "DocType",
-				"fields": [],
-				"distinct": "true",
-				"limit": limit,
-			}
-		)
-		count = execute_cmd("frappe.desk.reportview.get_count")
-		self.assertIsInstance(count, int)
-		self.assertLessEqual(count, limit)
-
-		# doctype with space in name
-		limit = 2
-		frappe.local.form_dict = frappe._dict(
-			{
-				"doctype": "Role Profile",
 				"fields": [],
 				"distinct": "true",
 				"limit": limit,

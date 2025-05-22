@@ -53,8 +53,8 @@ class BlogPost(WebsiteGenerator):
 		read_time: DF.Int
 		route: DF.Data | None
 		title: DF.Data
-
 	# end: auto-generated types
+
 	@frappe.whitelist()
 	def make_route(self):
 		if not self.route:
@@ -69,8 +69,7 @@ class BlogPost(WebsiteGenerator):
 
 		if not self.blog_intro:
 			content = get_html_content_based_on_type(self, "content", self.content_type)
-			self.blog_intro = content[:200]
-			self.blog_intro = strip_html_tags(self.blog_intro)
+			self.blog_intro = strip_html_tags(content)[:200]
 
 		if self.blog_intro:
 			self.blog_intro = self.blog_intro[:200]
@@ -94,6 +93,13 @@ class BlogPost(WebsiteGenerator):
 			self.reset_featured_for_other_blogs()
 
 		self.set_read_time()
+
+		if self.is_website_published():
+			from frappe.core.doctype.file.utils import extract_images_from_doc
+
+			# Extract images first before the standard image extraction to ensure they are public.
+			extract_images_from_doc(self, "content", is_private=False)
+			extract_images_from_doc(self, "content_md", is_private=False)
 
 	def reset_featured_for_other_blogs(self):
 		all_posts = frappe.get_all("Blog Post", {"featured": 1})
@@ -212,14 +218,14 @@ class BlogPost(WebsiteGenerator):
 			"reference_name": self.name,
 		}
 
-		context.like_count = frappe.db.count("Comment", filters) or 0
+		context.like_count = frappe.db.count("Comment", filters)
 
 		filters["comment_email"] = user
 
 		if user == "Guest":
 			filters["ip_address"] = frappe.local.request_ip
 
-		context.like = frappe.db.count("Comment", filters) or 0
+		context.like = frappe.db.count("Comment", filters)
 
 	def set_read_time(self):
 		content = self.content or self.content_html or ""
@@ -317,14 +323,14 @@ def get_blog_list(doctype, txt=None, filters=None, limit_start=0, limit_page_len
 		)
 
 	if filters and filters.get("blogger"):
-		conditions.append("t1.blogger=%s" % frappe.db.escape(filters.get("blogger")))
+		conditions.append("t1.blogger={}".format(frappe.db.escape(filters.get("blogger"))))
 
 	if category:
-		conditions.append("t1.blog_category=%s" % frappe.db.escape(category))
+		conditions.append("t1.blog_category={}".format(frappe.db.escape(category)))
 
 	if txt:
 		conditions.append(
-			'(t1.content like {0} or t1.title like {0}")'.format(frappe.db.escape("%" + txt + "%"))
+			"(t1.content like {0} or t1.title like {0})".format(frappe.db.escape("%" + txt + "%"))
 		)
 
 	if conditions:

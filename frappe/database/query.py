@@ -9,9 +9,9 @@ from pypika.queries import QueryBuilder, Table
 
 import frappe
 from frappe import _
-from frappe.database.operator_map import OPERATOR_MAP
+from frappe.database.operator_map import NESTED_SET_OPERATORS, OPERATOR_MAP
 from frappe.database.schema import SPECIAL_CHAR_PATTERN
-from frappe.database.utils import DefaultOrderBy, get_doctype_name
+from frappe.database.utils import DefaultOrderBy, FilterValue, convert_to_value, get_doctype_name
 from frappe.query_builder import Criterion, Field, Order, functions
 from frappe.query_builder.functions import Function, SqlFunctions
 from frappe.query_builder.utils import PseudoColumnMapper
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 TAB_PATTERN = re.compile("^tab")
 WORDS_PATTERN = re.compile(r"\w+")
 BRACKETS_PATTERN = re.compile(r"\(.*?\)|$")
-SQL_FUNCTIONS = [sql_function.value for sql_function in SqlFunctions]
+SQL_FUNCTIONS = tuple(f"{sql_function.value}(" for sql_function in SqlFunctions)  # ) <- ignore this comment.
 COMMA_PATTERN = re.compile(r",\s*(?![^()]*\))")
 
 # less restrictive version of frappe.core.doctype.doctype.doctype.START_WITH_LETTERS_PATTERN
@@ -35,8 +35,8 @@ class Engine:
 	def get_query(
 		self,
 		table: str | Table,
-		fields: list | tuple | None = None,
-		filters: dict[str, str | int] | str | int | list[list | str | int] | None = None,
+		fields: str | list | tuple | None = None,
+		filters: dict[str, FilterValue] | FilterValue | list[list | FilterValue] | None = None,
 		order_by: str | None = None,
 		group_by: str | None = None,
 		limit: int | None = None,
@@ -51,8 +51,12 @@ class Engine:
 		skip_locked: bool = False,
 		wait: bool = True,
 	) -> QueryBuilder:
-		self.is_mariadb = frappe.db.db_type == "mariadb"
-		self.is_postgres = frappe.db.db_type == "postgres"
+		qb = frappe.local.qb
+		db_type = frappe.local.db.db_type
+
+		self.is_mariadb = db_type == "mariadb"
+		self.is_postgres = db_type == "postgres"
+		self.is_sqlite = db_type == "sqlite"
 		self.validate_filters = validate_filters
 
 		if isinstance(table, Table):
@@ -61,16 +65,16 @@ class Engine:
 		else:
 			self.doctype = table
 			self.validate_doctype()
-			self.table = frappe.qb.DocType(table)
+			self.table = qb.DocType(table)
 
 		if update:
-			self.query = frappe.qb.update(self.table)
+			self.query = qb.update(self.table)
 		elif into:
-			self.query = frappe.qb.into(self.table)
+			self.query = qb.into(self.table)
 		elif delete:
-			self.query = frappe.qb.from_(self.table).delete()
+			self.query = qb.from_(self.table).delete()
 		else:
-			self.query = frappe.qb.from_(self.table)
+			self.query = qb.from_(self.table)
 			self.apply_fields(fields)
 
 		self.apply_filters(filters)
@@ -114,13 +118,13 @@ class Engine:
 
 	def apply_filters(
 		self,
-		filters: dict[str, str | int] | str | int | list[list | str | int] | None = None,
+		filters: dict[str, FilterValue] | FilterValue | list[list | FilterValue] | None = None,
 	):
 		if filters is None:
 			return
 
-		if isinstance(filters, str | int):
-			filters = {"name": str(filters)}
+		if isinstance(filters, FilterValue):
+			filters = {"name": convert_to_value(filters)}
 
 		if isinstance(filters, Criterion):
 			self.query = self.query.where(filters)
@@ -129,11 +133,11 @@ class Engine:
 			self.apply_dict_filters(filters)
 
 		elif isinstance(filters, list | tuple):
-			if all(isinstance(d, str | int) for d in filters) and len(filters) > 0:
-				self.apply_dict_filters({"name": ("in", filters)})
+			if all(isinstance(d, FilterValue) for d in filters) and len(filters) > 0:
+				self.apply_dict_filters({"name": ("in", tuple(convert_to_value(f) for f in filters))})
 			else:
 				for filter in filters:
-					if isinstance(filter, str | int | Criterion | dict):
+					if isinstance(filter, FilterValue | Criterion | dict):
 						self.apply_filters(filter)
 					elif isinstance(filter, list | tuple):
 						self.apply_list_filters(filter)
@@ -149,7 +153,7 @@ class Engine:
 			doctype, field, operator, value = filter
 			self._apply_filter(field, value, operator, doctype)
 
-	def apply_dict_filters(self, filters: dict[str, str | int | list]):
+	def apply_dict_filters(self, filters: dict[str, FilterValue | list]):
 		for field, value in filters.items():
 			operator = "="
 			if isinstance(value, list | tuple):
@@ -158,7 +162,11 @@ class Engine:
 			self._apply_filter(field, value, operator)
 
 	def _apply_filter(
-		self, field: str, value: str | int | list | None, operator: str = "=", doctype: str | None = None
+		self,
+		field: str,
+		value: FilterValue | list | set | None,
+		operator: str = "=",
+		doctype: str | None = None,
 	):
 		_field = field
 		_value = value
@@ -186,14 +194,13 @@ class Engine:
 					(table.parent == self.table.name) & (table.parenttype == self.doctype)
 				)
 
-		if isinstance(_value, bool):
-			_value = int(_value)
+		_value = convert_to_value(_value)
 
-		elif not _value and isinstance(_value, list | tuple):
+		if not _value and isinstance(_value, list | tuple | set):
 			_value = ("",)
 
 		# Nested set
-		if _operator in OPERATOR_MAP["nested_set"]:
+		if _operator in NESTED_SET_OPERATORS:
 			hierarchy = _operator
 			docname = _value
 
@@ -219,7 +226,7 @@ class Engine:
 			self.query = self.query.where(operator_fn(_field, _value))
 
 	def get_function_object(self, field: str) -> "Function":
-		"""Expects field to look like 'SUM(*)' or 'name' or something similar. Returns PyPika Function object"""
+		"""Return PyPika Function object. Expect field to look like 'SUM(*)' or 'name' or something similar."""
 		func = field.split("(", maxsplit=1)[0].capitalize()
 		args_start, args_end = len(func) + 1, field.index(")")
 		args = field[args_start:args_end].split(",")
@@ -299,10 +306,8 @@ class Engine:
 	def parse_fields(self, fields: str | list | tuple | None) -> list:
 		if not fields:
 			return []
-		fields = self.sanitize_fields(fields)
-		if isinstance(fields, list | tuple | set) and None in fields and Field not in fields:
-			return []
 
+		fields = self.sanitize_fields(fields)
 		if not isinstance(fields, list | tuple):
 			fields = [fields]
 
@@ -336,11 +341,12 @@ class Engine:
 	def apply_order_by(self, order_by: str | None):
 		if not order_by or order_by == DefaultOrderBy:
 			return
+
 		for declaration in order_by.split(","):
 			if _order_by := declaration.strip():
 				parts = _order_by.split(" ")
-				order_field, order_direction = parts[0], parts[1] if len(parts) > 1 else "desc"
-				order_direction = Order.asc if order_direction.lower() == "asc" else Order.desc
+				order_field = parts[0]
+				order_direction = Order.asc if (len(parts) > 1 and parts[1].lower() == "asc") else Order.desc
 				self.query = self.query.orderby(order_field, order=order_direction)
 
 
@@ -513,11 +519,11 @@ def literal_eval_(literal):
 		return literal
 
 
-def has_function(field):
-	_field = field.casefold() if (isinstance(field, str) and "`" not in field) else field
-	if not issubclass(type(_field), Criterion):
-		if any([f"{func}(" in _field for func in SQL_FUNCTIONS]):  # ) <- ignore this comment.
-			return True
+def has_function(field: str):
+	if "`" not in field:
+		field = field.casefold()
+
+	return any(func in field for func in SQL_FUNCTIONS)
 
 
 def get_nested_set_hierarchy_result(doctype: str, name: str, hierarchy: str) -> list[str]:

@@ -23,8 +23,8 @@ class InstalledApplications(Document):
 		from frappe.types import DF
 
 		installed_applications: DF.Table[InstalledApplication]
-
 	# end: auto-generated types
+
 	def update_versions(self):
 		self.delete_key("installed_applications")
 		for app in frappe.utils.get_installed_apps_info():

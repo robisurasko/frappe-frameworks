@@ -41,7 +41,7 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 				this.add_totals_row = this.report_doc.json.add_totals_row;
 				this.page_title = __(this.report_name);
 				this.page_length = this.report_doc.json.page_length || 20;
-				this.order_by = this.report_doc.json.order_by || "modified desc";
+				this.order_by = this.report_doc.json.order_by || "creation desc";
 				this.chart_args = this.report_doc.json.chart_args;
 			});
 		} else {
@@ -55,7 +55,7 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 		this.setup_columns();
 		super.setup_new_doc_event();
 		this.setup_events();
-		this.page.main.addClass("report-view");
+		this.page.main.parent().addClass("report-view");
 	}
 
 	setup_events() {
@@ -104,7 +104,7 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 		);
 		this.$paging_area
 			.find(".level-left")
-			.after(`<span class="comparison-message text-muted">${message}</span>`);
+			.after(`<span class="comparison-message text-extra-muted">${message}</span>`);
 	}
 
 	setup_sort_selector() {
@@ -117,10 +117,9 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 
 		//Setup groupby for reports
 		this.group_by_control = new frappe.ui.GroupBy(this);
-		if (this.report_doc && this.report_doc.json.group_by) {
+		if (this.report_doc?.json?.group_by) {
 			this.group_by_control.apply_settings(this.report_doc.json.group_by);
-		}
-		if (this.view_user_settings && this.view_user_settings.group_by) {
+		} else if (this.view_user_settings?.group_by) {
 			this.group_by_control.apply_settings(this.view_user_settings.group_by);
 		}
 	}
@@ -1665,6 +1664,7 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 							if (data.file_format == "CSV") {
 								args.csv_delimiter = data.csv_delimiter;
 								args.csv_quoting = data.csv_quoting;
+								args.csv_decimal_sep = data.csv_decimal_sep;
 							}
 
 							if (this.add_totals_row) {
